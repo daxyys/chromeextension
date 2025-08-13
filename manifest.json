@@ -1,0 +1,103 @@
+{
+  "manifest_version": 3,
+  "name": "Shipping Agent Redirector",
+  "version": "1.0.0",
+  "description": "Seamlessly redirect between 27 shipping agents and original platforms with batch tools, currency conversion, and link management.",
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "contextMenus",
+    "tabs"
+  ],
+  
+  "host_permissions": [
+    "*://*.taobao.com/*",
+    "*://*.tmall.com/*",
+    "*://*.weidian.com/*",
+    "*://*.1688.com/*",
+    "*://*.superbuy.com/*",
+    "*://*.sugargoo.com/*",
+    "*://*.joyagoo.com/*",
+    "*://*.mycnbox.com/*",
+    "*://*.itaobuy.com/*",
+    "*://*.acbuy.com/*",
+    "*://*.allchinabuy.com/*",
+    "*://*.cnfans.com/*",
+    "*://*.mulebuy.com/*",
+    "*://*.hoobuy.com/*",
+    "*://*.loongbuy.com/*",
+    "*://*.lovegobuy.com/*",
+    "*://*.basetao.com/*",
+    "*://*.eastmallbuy.com/*",
+    "*://*.hubbuycn.com/*",
+    "*://*.oopbuy.com/*",
+    "*://*.orientdig.com/*",
+    "*://*.yoybuy.com/*",
+    "*://*.hipobuy.com/*",
+    "*://*.npbuy.com/*",
+    "*://*.gtbuy.com/*",
+    "*://*.pantherbuy.com/*",
+    "*://*.ootdbuy.com/*",
+    "*://*.cssbuy.com/*"
+  ],
+  
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.taobao.com/*",
+        "*://*.tmall.com/*",
+        "*://*.weidian.com/*",
+        "*://*.1688.com/*",
+        "*://*.superbuy.com/*",
+        "*://*.sugargoo.com/*",
+        "*://*.joyagoo.com/*",
+        "*://*.mycnbox.com/*",
+        "*://*.itaobuy.com/*",
+        "*://*.acbuy.com/*",
+        "*://*.allchinabuy.com/*",
+        "*://*.cnfans.com/*",
+        "*://*.mulebuy.com/*",
+        "*://*.hoobuy.com/*",
+        "*://*.loongbuy.com/*",
+        "*://*.lovegobuy.com/*",
+        "*://*.basetao.com/*",
+        "*://*.eastmallbuy.com/*",
+        "*://*.hubbuycn.com/*",
+        "*://*.oopbuy.com/*",
+        "*://*.orientdig.com/*",
+        "*://*.yoybuy.com/*",
+        "*://*.hipobuy.com/*",
+        "*://*.npbuy.com/*",
+        "*://*.gtbuy.com/*",
+        "*://*.pantherbuy.com/*",
+        "*://*.ootdbuy.com/*",
+        "*://*.cssbuy.com/*"
+      ],
+      "js": ["lib/converter.js", "content/content.js"],
+      "css": ["content/content.css"]
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Shipping Agent Redirector"
+  },
+  
+  "options_page": "options/options.html",
+  
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/converter.js", "lib/storage.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Redirector Settings</title>
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <div class="settings-container">
+        <header class="settings-header">
+            <h1>Agent Redirector Settings</h1>
+            <p>Configure your shopping experience preferences</p>
+        </header>
+
+        <main class="settings-content">
+            <!-- General Settings -->
+            <section class="settings-section">
+                <h2>General Settings</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <span class="label-text">Auto-Convert Links</span>
+                        <span class="label-description">Automatically redirect to your preferred agent when visiting product pages</span>
+                    </label>
+                    <div class="toggle" id="auto-convert-toggle">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <span class="label-text">Theme</span>
+                        <span class="label-description">Choose your preferred color scheme</span>
+                    </label>
+                    <select id="theme-select" class="setting-select">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="auto">Auto (System)</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Agent Settings -->
+            <section class="settings-section">
+                <h2>Agent Preferences</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <span class="label-text">Preferred Agent</span>
+                        <span class="label-description">Default shipping agent to redirect to</span>
+                    </label>
+                    <select id="preferred-agent-select" class="setting-select">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </div>
+            </section>
+
+            <!-- Currency Settings -->
+            <section class="settings-section">
+                <h2>Currency Conversion</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <span class="label-text">Enable Currency Conversion</span>
+                        <span class="label-description">Show converted prices on product pages</span>
+                    </label>
+                    <div class="toggle" id="currency-conversion-toggle">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <span class="label-text">Target Currency</span>
+                        <span class="label-description">Currency to convert CNY prices to</span>
+                    </label>
+                    <select id="currency-select" class="setting-select">
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="GBP">GBP - British Pound</option>
+                        <option value="CAD">CAD - Canadian Dollar</option>
+                        <option value="AUD">AUD - Australian Dollar</option>
+                        <option value="JPY">JPY - Japanese Yen</option>
+                        <option value="CNY">CNY - Chinese Yuan (No conversion)</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- History & Data -->
+            <section class="settings-section">
+                <h2>History & Data</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <span class="label-text">Max History Items</span>
+                        <span class="label-description">Maximum number of redirects to keep in history</span>
+                    </label>
+                    <select id="max-history-select" class="setting-select">
+                        <option value="25">25 items</option>
+                        <option value="50">50 items</option>
+                        <option value="100">100 items</option>
+                        <option value="200">200 items</option>
+                    </select>
+                </div>
+
+                <div class="setting-group">
+                    <div class="setting-buttons">
+                        <button id="clear-all-data" class="btn btn-secondary">Clear All Data</button>
+                        <button id="export-data" class="btn btn-secondary">Export Data</button>
+                        <button id="import-data" class="btn btn-secondary">Import Data</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Statistics -->
+            <section class="settings-section">
+                <h2>Statistics</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-redirects">0</div>
+                        <div class="stat-label">Total Redirects</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-favorites">0</div>
+                        <div class="stat-label">Saved Favorites</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="recent-redirects">0</div>
+                        <div class="stat-label">This Week</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="most-used-agent">-</div>
+                        <div class="stat-label">Most Used Agent</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- About -->
+            <section class="settings-section">
+                <h2>About</h2>
+                <div class="about-info">
+                    <p><strong>Agent Redirector</strong> v1.0.0</p>
+                    <p>Streamline your shopping experience across 27+ shipping agents</p>
+                    <p>Supports: Taobao, Weidian, 1688, and all major shipping agents</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Save indicator -->
+        <div class="save-indicator" id="save-indicator">
+            <span>Settings saved!</span>
+        </div>
+
+        <!-- Import file input (hidden) -->
+        <input type="file" id="import-file-input" accept=".json" style="display: none;">
+    </div>
+
+    <script src="../lib/converter.js"></script>
+    <script src="../lib/storage.js"></script>
+    <script src="options.js"></script>
+</body>
+</html>

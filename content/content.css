@@ -1,0 +1,237 @@
+/* Content script styles for Shipping Agent Redirector */
+
+/* Hide common warning elements */
+.agent-redirector-hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+/* Tooltip styles */
+.agent-redirector-tooltip {
+    position: relative;
+    z-index: 10000;
+}
+
+.agent-redirector-tooltip div {
+    position: absolute;
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    z-index: 10000;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    animation: fadeIn 0.2s ease;
+}
+
+.agent-redirector-tooltip div::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: #333;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* Enhanced link styles */
+a[data-agent-convertible="true"] {
+    position: relative;
+}
+
+a[data-agent-convertible="true"]::after {
+    content: '🔄';
+    position: absolute;
+    top: -2px;
+    right: -16px;
+    font-size: 10px;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+a[data-agent-convertible="true"]:hover::after {
+    opacity: 1;
+}
+
+/* Currency conversion styles */
+.agent-redirector-price-converted {
+    color: #666;
+    font-size: 0.9em;
+    font-weight: normal;
+}
+
+.agent-redirector-price-original {
+    text-decoration: none;
+}
+
+/* Quick action overlay */
+.agent-redirector-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    padding: 24px;
+    z-index: 10001;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-width: 300px;
+    max-width: 90vw;
+}
+
+.agent-redirector-overlay-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+}
+
+.agent-redirector-overlay h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.agent-redirector-overlay-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.agent-redirector-btn {
+    padding: 12px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.agent-redirector-btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+.agent-redirector-btn-primary:hover {
+    background: #5a6fd8;
+    transform: translateY(-1px);
+}
+
+.agent-redirector-btn-secondary {
+    background: #f8f9fa;
+    color: #333;
+    border: 2px solid #e5e7eb;
+}
+
+.agent-redirector-btn-secondary:hover {
+    background: #e5e7eb;
+    transform: translateY(-1px);
+}
+
+/* Hide specific warning selectors for known agents */
+
+/* Superbuy warnings */
+.external-warning,
+.link-warning,
+.superbuy-warning {
+    display: none !important;
+}
+
+/* Sugargoo warnings */
+.warning-modal,
+.external-link-warning,
+.sugargoo-popup {
+    display: none !important;
+}
+
+/* CNFans warnings */
+.warning-popup,
+.cnfans-warning {
+    display: none !important;
+}
+
+/* CSSBuy warnings */
+.warning-dialog,
+.cssbuy-external-warning {
+    display: none !important;
+}
+
+/* Hoobuy warnings */
+.hoobuy-warning-modal {
+    display: none !important;
+}
+
+/* Generic warning patterns */
+[class*="external-warning"],
+[class*="link-warning"],
+[class*="redirect-warning"] {
+    display: none !important;
+}
+
+/* Sign-in prompt hiding */
+.login-popup,
+.signin-modal,
+.auth-modal,
+.login-overlay {
+    display: none !important;
+}
+
+/* Agent-specific sign-in prompts */
+[class*="login-popup"],
+[class*="signin-modal"],
+[class*="auth-overlay"] {
+    display: none !important;
+}
+
+/* Loading states */
+.agent-redirector-loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.agent-redirector-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
