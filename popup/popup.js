@@ -1,5 +1,8 @@
 // Popup script for Shipping Agent Redirector
 
+// Declare Chrome extension APIs to avoid IDE errors
+const chromeAPI = chrome;
+
 class PopupManager {
     constructor() {
         console.log('PopupManager constructor called');
@@ -9,6 +12,13 @@ class PopupManager {
         this.converter = new ShippingAgentConverter();
         this.storage = new ExtensionStorage();
         this.currentTab = null;
+        
+        // Track current stats to prevent overriding optimistic updates
+        this.currentStats = {
+            redirects: 0,
+            favorites: 0
+        };
+        
         console.log('PopupManager initialized');
         this.init();
     }
@@ -35,8 +45,14 @@ class PopupManager {
         return true;
     }
 
-    init() {
+    async init() {
         console.log('Initializing popup...');
+        
+        // Check if Chrome extension API is available
+        if (!chromeAPI || !chromeAPI.runtime) {
+            console.error('Chrome extension API not available');
+            return;
+        }
         
         // Check if required elements exist
         if (!this.checkRequiredElements()) {
@@ -44,23 +60,28 @@ class PopupManager {
             return;
         }
         
-        // Load settings and other data
-        this.loadSettings().then(() => {
-            return this.loadStats();
-        }).then(() => {
-            return this.loadCurrentPageInfo();
-        }).then(() => {
+        try {
+            await this.loadSettings();
+            await this.loadStats();
+            await this.loadCurrentPageInfo();
             this.setupEventListeners();
             console.log('Popup initialization complete');
-        }).catch(error => {
+        } catch (error) {
             console.error('Error during initialization:', error);
-        });
+        }
     }
 
     loadSettings() {
         return new Promise((resolve, reject) => {
             console.log('Loading settings...');
-            chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+            
+            chromeAPI.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+                if (chromeAPI.runtime.lastError) {
+                    console.error('Runtime error:', chromeAPI.runtime.lastError);
+                    reject(new Error(chromeAPI.runtime.lastError.message));
+                    return;
+                }
+                
                 if (response && response.success) {
                     const settings = response.settings;
                     console.log('Settings loaded:', settings);
@@ -92,18 +113,28 @@ class PopupManager {
 
     loadStats() {
         return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ action: 'getStats' }, (response) => {
+            chromeAPI.runtime.sendMessage({ action: 'getStats' }, (response) => {
+                if (chromeAPI.runtime.lastError) {
+                    console.error('Runtime error:', chromeAPI.runtime.lastError);
+                    reject(new Error(chromeAPI.runtime.lastError.message));
+                    return;
+                }
+                
                 if (response && response.success) {
                     const stats = response.stats;
+                    
+                    // Update our tracking
+                    this.currentStats.redirects = stats.totalRedirects || 0;
+                    this.currentStats.favorites = stats.totalFavorites || 0;
                     
                     const redirectElement = document.getElementById('redirect-count');
                     const favoritesElement = document.getElementById('favorites-count');
                     
                     if (redirectElement) {
-                        redirectElement.textContent = stats.totalRedirects;
+                        redirectElement.textContent = String(this.currentStats.redirects);
                     }
                     if (favoritesElement) {
-                        favoritesElement.textContent = stats.totalFavorites;
+                        favoritesElement.textContent = String(this.currentStats.favorites);
                     }
                     resolve(stats);
                 } else {
@@ -116,7 +147,13 @@ class PopupManager {
 
     loadCurrentPageInfo() {
         return new Promise((resolve, reject) => {
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chromeAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (chromeAPI.runtime.lastError) {
+                    console.error('Runtime error:', chromeAPI.runtime.lastError);
+                    reject(new Error(chromeAPI.runtime.lastError.message));
+                    return;
+                }
+                
                 const tab = tabs[0];
                 this.currentTab = tab;
 
@@ -124,7 +161,6 @@ class PopupManager {
                     const parsed = this.converter.parseUrl(tab.url);
                     
                     if (parsed) {
-                        // Show current page info
                         const pageInfo = document.getElementById('current-page-info');
                         const platformElement = document.getElementById('current-platform');
                         const itemElement = document.getElementById('current-item');
@@ -135,7 +171,6 @@ class PopupManager {
                             itemElement.textContent = parsed.itemId || 'Unknown';
                         }
                     } else {
-                        // Hide current page info if not a supported page
                         const pageInfo = document.getElementById('current-page-info');
                         if (pageInfo) {
                             pageInfo.style.display = 'none';
@@ -172,10 +207,10 @@ class PopupManager {
 
         const saveBtn = document.getElementById('save-current');
         if (saveBtn) {
-            saveBtn.addEventListener('click', (e) => {
+            saveBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 console.log('Save button clicked');
-                this.saveCurrentPage();
+                await this.saveCurrentPage();
             });
         }
 
@@ -184,7 +219,6 @@ class PopupManager {
         if (batchBtn) {
             batchBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Batch convert clicked');
                 this.showPanel('batch-convert-panel');
             });
         }
@@ -193,7 +227,6 @@ class PopupManager {
         if (historyBtn) {
             historyBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('History button clicked');
                 this.showPanel('history-panel');
                 this.loadHistory();
             });
@@ -204,7 +237,6 @@ class PopupManager {
         if (favoritesLink) {
             favoritesLink.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Favorites link clicked');
                 this.showPanel('favorites-panel');
                 this.loadFavorites();
             });
@@ -214,56 +246,47 @@ class PopupManager {
         if (settingsLink) {
             settingsLink.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('Settings link clicked');
                 this.showPanel('settings-panel');
                 this.loadSettingsPanel();
             });
         }
 
-        // Panel navigation
-        const batchBack = document.getElementById('batch-back');
-        if (batchBack) {
-            batchBack.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.hidePanel('batch-convert-panel');
-            });
-        }
+        this.setupPanelNavigation();
+        this.setupBatchConvert();
+        this.setupSettingsControls();
+        this.setupHistoryActions();
+        this.setupFavoritesSearch();
+    }
 
-        const historyBack = document.getElementById('history-back');
-        if (historyBack) {
-            historyBack.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.hidePanel('history-panel');
-            });
-        }
+    setupPanelNavigation() {
+        const panels = [
+            { backId: 'batch-back', panelId: 'batch-convert-panel' },
+            { backId: 'history-back', panelId: 'history-panel' },
+            { backId: 'favorites-back', panelId: 'favorites-panel' },
+            { backId: 'settings-back', panelId: 'settings-panel' }
+        ];
 
-        const favoritesBack = document.getElementById('favorites-back');
-        if (favoritesBack) {
-            favoritesBack.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.hidePanel('favorites-panel');
-            });
-        }
+        panels.forEach(({ backId, panelId }) => {
+            const backBtn = document.getElementById(backId);
+            if (backBtn) {
+                backBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.hidePanel(panelId);
+                });
+            }
+        });
 
-        const settingsBack = document.getElementById('settings-back');
-        if (settingsBack) {
-            settingsBack.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.hidePanel('settings-panel');
-            });
-        }
-
-        // Full settings page button
         const fullSettingsBtn = document.getElementById('full-settings');
         if (fullSettingsBtn) {
             fullSettingsBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                chrome.runtime.openOptionsPage();
+                chromeAPI.runtime.openOptionsPage();
                 window.close();
             });
         }
+    }
 
-        // Batch convert functionality
+    setupBatchConvert() {
         const convertBatchBtn = document.getElementById('convert-batch');
         if (convertBatchBtn) {
             convertBatchBtn.addEventListener('click', (e) => {
@@ -295,36 +318,42 @@ class PopupManager {
                 this.copyBatchResults();
             });
         }
+    }
 
-        // History actions
+    setupHistoryActions() {
         const clearHistoryBtn = document.getElementById('clear-history');
         if (clearHistoryBtn) {
-            clearHistoryBtn.addEventListener('click', (e) => {
+            clearHistoryBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                this.clearHistory();
+                await this.clearHistory();
             });
         }
+    }
 
-        // Favorites search
+    setupFavoritesSearch() {
         const favoritesSearch = document.getElementById('favorites-search');
         if (favoritesSearch) {
             favoritesSearch.addEventListener('input', (e) => {
-                this.searchFavorites(e.target.value);
+                const input = e.target;
+                this.searchFavorites(input.value);
             });
         }
+    }
 
-        // Settings panel controls
+    setupSettingsControls() {
         const popupAgentSelect = document.getElementById('popup-preferred-agent');
         if (popupAgentSelect) {
             popupAgentSelect.addEventListener('change', (e) => {
-                this.updateSetting('preferredAgent', e.target.value);
+                const select = e.target;
+                this.updateSetting('preferredAgent', select.value);
             });
         }
 
         const popupCurrencySelect = document.getElementById('popup-currency-select');
         if (popupCurrencySelect) {
             popupCurrencySelect.addEventListener('change', (e) => {
-                this.updateSetting('currency', e.target.value);
+                const select = e.target;
+                this.updateSetting('currency', select.value);
             });
         }
 
@@ -339,12 +368,12 @@ class PopupManager {
         const popupThemeSelect = document.getElementById('popup-theme-select');
         if (popupThemeSelect) {
             popupThemeSelect.addEventListener('change', (e) => {
-                this.updateSetting('theme', e.target.value);
-                this.applyTheme(e.target.value);
+                const select = e.target;
+                this.updateSetting('theme', select.value);
+                this.applyTheme(select.value);
             });
         }
 
-        // Settings panel actions
         const exportDataPopup = document.getElementById('export-data-popup');
         if (exportDataPopup) {
             exportDataPopup.addEventListener('click', () => {
@@ -366,15 +395,76 @@ class PopupManager {
         const updates = {};
         updates[key] = value;
         
-        chrome.runtime.sendMessage({ 
+        chromeAPI.runtime.sendMessage({ 
             action: 'updateSettings', 
             updates 
         }, (response) => {
+            if (chromeAPI.runtime.lastError) {
+                console.error('Runtime error:', chromeAPI.runtime.lastError);
+                return;
+            }
+            
             if (response && response.success) {
                 console.log('Setting updated successfully:', key, '=', value);
             } else {
                 console.error('Failed to update setting:', key, response);
             }
+        });
+    }
+
+    // FIXED: Better counter management that doesn't get overridden
+    updateCountersDirectly(redirectChange = 0, favoritesChange = 0) {
+        // Update our internal tracking
+        this.currentStats.redirects = Math.max(0, this.currentStats.redirects + redirectChange);
+        this.currentStats.favorites = Math.max(0, this.currentStats.favorites + favoritesChange);
+        
+        // Update UI immediately
+        const redirectElement = document.getElementById('redirect-count');
+        const favoritesElement = document.getElementById('favorites-count');
+        
+        if (redirectElement) {
+            redirectElement.textContent = String(this.currentStats.redirects);
+        }
+        
+        if (favoritesElement) {
+            favoritesElement.textContent = String(this.currentStats.favorites);
+        }
+    }
+
+    // FIXED: Load stats without overriding optimistic updates
+    async loadStatsWithoutOverride() {
+        return new Promise((resolve) => {
+            chromeAPI.runtime.sendMessage({ action: 'getStats' }, (response) => {
+                if (chromeAPI.runtime.lastError) {
+                    console.error('Runtime error:', chromeAPI.runtime.lastError);
+                    resolve(null);
+                    return;
+                }
+                
+                if (response && response.success) {
+                    const stats = response.stats;
+                    
+                    // Only update if our local stats are obviously wrong (like negative)
+                    if (this.currentStats.redirects < 0 || this.currentStats.favorites < 0) {
+                        this.currentStats.redirects = stats.totalRedirects || 0;
+                        this.currentStats.favorites = stats.totalFavorites || 0;
+                        
+                        const redirectElement = document.getElementById('redirect-count');
+                        const favoritesElement = document.getElementById('favorites-count');
+                        
+                        if (redirectElement) {
+                            redirectElement.textContent = String(this.currentStats.redirects);
+                        }
+                        if (favoritesElement) {
+                            favoritesElement.textContent = String(this.currentStats.favorites);
+                        }
+                    }
+                    
+                    resolve(stats);
+                } else {
+                    resolve(null);
+                }
+            });
         });
     }
 
@@ -384,8 +474,12 @@ class PopupManager {
             return;
         }
 
-        // Get preferred agent from settings
-        chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+        chromeAPI.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+            if (chromeAPI.runtime.lastError) {
+                console.error('Runtime error:', chromeAPI.runtime.lastError);
+                return;
+            }
+            
             if (!response || !response.success) {
                 console.error('Could not get settings');
                 return;
@@ -399,9 +493,11 @@ class PopupManager {
             if (convertedUrl && convertedUrl !== this.currentTab.url) {
                 console.log('Converted URL:', convertedUrl);
                 
-                // Add to history
+                // Immediately update redirect counter
+                this.updateCountersDirectly(1, 0);
+                
                 const parsed = this.converter.parseUrl(this.currentTab.url);
-                chrome.runtime.sendMessage({
+                chromeAPI.runtime.sendMessage({
                     action: 'addToHistory',
                     item: {
                         originalUrl: this.currentTab.url,
@@ -411,10 +507,14 @@ class PopupManager {
                         platform: parsed?.platform,
                         itemId: parsed?.itemId
                     }
+                }, (historyResponse) => {
+                    // Don't override our optimistic update
+                    if (!historyResponse || !historyResponse.success) {
+                        this.updateCountersDirectly(-1, 0);
+                    }
                 });
 
-                // Open converted URL in new tab
-                chrome.tabs.create({ url: convertedUrl });
+                chromeAPI.tabs.create({ url: convertedUrl });
                 window.close();
             } else {
                 console.log('Could not convert URL or URL is the same');
@@ -422,28 +522,52 @@ class PopupManager {
         });
     }
 
-    saveCurrentPage() {
+    async saveCurrentPage() {
         if (!this.currentTab || !this.currentTab.url) return;
 
         const parsed = this.converter.parseUrl(this.currentTab.url);
         
-        chrome.runtime.sendMessage({
-            action: 'addToFavorites',
-            item: {
-                url: this.currentTab.url,
-                title: this.currentTab.title || '',
-                notes: '',
-                tags: [],
-                platform: parsed?.platform,
-                itemId: parsed?.itemId,
-                agent: parsed?.agent
-            }
-        }, (response) => {
-            if (response && response.success) {
-                // Update favorites count
-                this.loadStats();
-                console.log('Page saved to favorites');
-            }
+        // Immediately update counter for instant feedback
+        this.updateCountersDirectly(0, 1);
+        
+        return new Promise((resolve) => {
+            chromeAPI.runtime.sendMessage({
+                action: 'addToFavorites',
+                item: {
+                    url: this.currentTab.url,
+                    title: this.currentTab.title || '',
+                    notes: '',
+                    tags: [],
+                    platform: parsed?.platform,
+                    itemId: parsed?.itemId,
+                    agent: parsed?.agent
+                }
+            }, (response) => {
+                if (chromeAPI.runtime.lastError) {
+                    console.error('Runtime error:', chromeAPI.runtime.lastError);
+                    this.updateCountersDirectly(0, -1);
+                    resolve();
+                    return;
+                }
+                
+                if (response && response.success) {
+                    console.log('Page saved to favorites');
+                    
+                    const saveBtn = document.getElementById('save-current');
+                    if (saveBtn) {
+                        const originalText = saveBtn.textContent;
+                        saveBtn.textContent = 'Saved!';
+                        saveBtn.style.background = 'var(--success-color, #28a745)';
+                        setTimeout(() => {
+                            saveBtn.textContent = originalText;
+                            saveBtn.style.background = '';
+                        }, 1500);
+                    }
+                } else {
+                    this.updateCountersDirectly(0, -1);
+                }
+                resolve();
+            });
         });
     }
 
@@ -452,6 +576,7 @@ class PopupManager {
         if (panel) {
             panel.style.display = 'block';
             panel.classList.add('slide-in');
+            this.applyThemeToElement(panel);
         }
     }
 
@@ -471,26 +596,27 @@ class PopupManager {
         if (!textarea) return;
         
         const urls = textarea.value.split('\n').filter(url => url.trim());
-        
         if (urls.length === 0) return;
 
-        // Get preferred agent from settings
-        chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
-            if (!response || !response.success) {
+        chromeAPI.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+            if (chromeAPI.runtime.lastError || !response || !response.success) {
                 console.error('Could not get settings');
                 return;
             }
             
             const targetAgent = response.settings.preferredAgent;
 
-            chrome.runtime.sendMessage({
+            chromeAPI.runtime.sendMessage({
                 action: 'batchConvert',
                 urls: urls,
                 targetAgent: targetAgent
             }, (batchResponse) => {
-                if (batchResponse && batchResponse.success) {
-                    this.displayBatchResults(batchResponse.results);
+                if (chromeAPI.runtime.lastError || !batchResponse || !batchResponse.success) {
+                    console.error('Batch convert failed');
+                    return;
                 }
+                
+                this.displayBatchResults(batchResponse.results);
             });
         });
     }
@@ -499,7 +625,6 @@ class PopupManager {
         const resultsContainer = document.getElementById('results-list');
         const resultsSection = document.getElementById('batch-results');
         
-        // Check if elements exist
         if (!resultsContainer || !resultsSection) {
             console.error('Batch results elements not found');
             return;
@@ -513,12 +638,12 @@ class PopupManager {
             
             if (result.converted) {
                 item.innerHTML = `
-                    <div class="result-original">${result.original}</div>
-                    <div class="result-converted">${result.converted}</div>
+                    <div class="result-original">${this.escapeHtml(result.original)}</div>
+                    <div class="result-converted">${this.escapeHtml(result.converted)}</div>
                 `;
             } else {
                 item.innerHTML = `
-                    <div class="result-original">${result.original}</div>
+                    <div class="result-original">${this.escapeHtml(result.original)}</div>
                     <div class="result-error">Could not convert this URL</div>
                 `;
             }
@@ -536,9 +661,8 @@ class PopupManager {
             .filter(url => url && !url.includes('Could not convert'))
             .join('\n');
         
-        if (convertedUrls) {
+        if (convertedUrls && navigator.clipboard) {
             navigator.clipboard.writeText(convertedUrls).then(() => {
-                // Show feedback that results were copied
                 const btn = document.getElementById('copy-results');
                 if (btn) {
                     const originalText = btn.textContent;
@@ -552,20 +676,21 @@ class PopupManager {
     }
 
     loadHistory() {
-        chrome.runtime.sendMessage({ 
+        chromeAPI.runtime.sendMessage({ 
             action: 'getHistory',
             limit: 50 
         }, (response) => {
-            if (response && response.success) {
-                this.displayHistory(response.history);
+            if (chromeAPI.runtime.lastError || !response || !response.success) {
+                console.error('Failed to load history');
+                return;
             }
+            
+            this.displayHistory(response.history);
         });
     }
 
     displayHistory(history) {
         const historyList = document.getElementById('history-list');
-        
-        // Check if element exists
         if (!historyList) {
             console.error('History list element not found');
             return;
@@ -593,17 +718,16 @@ class PopupManager {
             const toAgent = this.converter.getAgentDisplayName(item.toAgent) || item.toAgent;
             
             historyItem.innerHTML = `
-                <div class="history-timestamp">${timestamp}</div>
+                <div class="history-timestamp">${this.escapeHtml(timestamp)}</div>
                 <div class="history-conversion">
-                    <span class="history-from">${fromAgent}</span> → 
-                    <span class="history-to">${toAgent}</span>
+                    <span class="history-from">${this.escapeHtml(fromAgent)}</span> → 
+                    <span class="history-to">${this.escapeHtml(toAgent)}</span>
                 </div>
-                <div class="history-url">${item.convertedUrl}</div>
+                <div class="history-url">${this.escapeHtml(item.convertedUrl)}</div>
             `;
             
-            // Add click handler to open URL
             historyItem.addEventListener('click', () => {
-                chrome.tabs.create({ url: item.convertedUrl });
+                chromeAPI.tabs.create({ url: item.convertedUrl });
                 window.close();
             });
             
@@ -611,33 +735,91 @@ class PopupManager {
         });
     }
 
-    clearHistory() {
+    async clearHistory() {
+        if (!confirm('Are you sure you want to clear all history? This action cannot be undone.')) {
+            return;
+        }
+        
         console.log('Clearing history...');
-        chrome.runtime.sendMessage({ action: 'clearHistory' }, (response) => {
-            console.log('Clear history response:', response);
-            
-            if (response && response.success) {
-                console.log('History cleared successfully');
-                this.loadHistory();
-                this.loadStats();
-            } else {
-                console.error('Failed to clear history:', response);
-            }
+        
+        const historyList = document.getElementById('history-list');
+        const clearBtn = document.getElementById('clear-history');
+        
+        if (clearBtn) {
+            clearBtn.disabled = true;
+            clearBtn.textContent = 'Clearing...';
+        }
+        
+        if (historyList) {
+            historyList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">⏳</div>
+                    <h3>Clearing History...</h3>
+                    <p>Please wait while we clear your history.</p>
+                </div>
+            `;
+        }
+        
+        // Immediately reset redirect counter
+        this.updateCountersDirectly(-this.currentStats.redirects, 0);
+        
+        return new Promise((resolve) => {
+            chromeAPI.runtime.sendMessage({ action: 'clearHistory' }, (response) => {
+                if (chromeAPI.runtime.lastError) {
+                    console.error('Runtime error:', chromeAPI.runtime.lastError);
+                    resolve();
+                    return;
+                }
+                
+                if (response && response.success) {
+                    console.log('History cleared successfully');
+                    
+                    if (historyList) {
+                        historyList.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📚</div>
+                                <h3>No History Yet</h3>
+                                <p>Your conversion history will appear here once you start using the redirector.</p>
+                            </div>
+                        `;
+                    }
+                    
+                    if (clearBtn) {
+                        clearBtn.textContent = 'Cleared!';
+                        clearBtn.disabled = false;
+                        setTimeout(() => {
+                            clearBtn.textContent = 'Clear All';
+                        }, 1500);
+                    }
+                } else {
+                    console.error('Failed to clear history:', response);
+                    
+                    if (clearBtn) {
+                        clearBtn.disabled = false;
+                        clearBtn.textContent = 'Clear All';
+                    }
+                    
+                    this.loadHistory();
+                    this.loadStats();
+                }
+                resolve();
+            });
         });
     }
 
     loadFavorites() {
-        chrome.runtime.sendMessage({ action: 'getFavorites' }, (response) => {
-            if (response && response.success) {
-                this.displayFavorites(response.favorites);
+        chromeAPI.runtime.sendMessage({ action: 'getFavorites' }, (response) => {
+            if (chromeAPI.runtime.lastError || !response || !response.success) {
+                console.error('Failed to load favorites');
+                return;
             }
+            
+            this.displayFavorites(response.favorites);
         });
     }
 
     displayFavorites(favorites) {
         const favoritesList = document.getElementById('favorites-list');
-        
-        // Check if element exists
         if (!favoritesList) {
             console.error('Favorites list element not found');
             return;
@@ -663,13 +845,13 @@ class PopupManager {
             const platform = item.platform ? this.converter.getAgentDisplayName(item.platform) || item.platform : 'Unknown';
             
             favoriteItem.innerHTML = `
-                <div class="favorite-title">${item.title || 'Untitled'}</div>
-                <div class="favorite-url">${item.url}</div>
+                <div class="favorite-title">${this.escapeHtml(item.title || 'Untitled')}</div>
+                <div class="favorite-url">${this.escapeHtml(item.url)}</div>
                 <div class="favorite-meta">
-                    <span class="favorite-platform">${platform}</span>
+                    <span class="favorite-platform">${this.escapeHtml(platform)}</span>
                     <div class="favorite-actions">
-                        <button class="open-favorite" data-url="${item.url}">Open</button>
-                        <button class="convert-favorite" data-url="${item.url}">Convert</button>
+                        <button class="open-favorite" data-url="${this.escapeHtml(item.url)}">Open</button>
+                        <button class="convert-favorite" data-url="${this.escapeHtml(item.url)}">Convert</button>
                         <button class="remove-favorite" data-id="${item.id}">Remove</button>
                     </div>
                 </div>
@@ -678,43 +860,43 @@ class PopupManager {
             favoritesList.appendChild(favoriteItem);
         });
         
-        // Add event listeners for favorite actions
         this.setupFavoriteActions();
     }
 
     setupFavoriteActions() {
-        // Open favorite
         document.querySelectorAll('.open-favorite').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 const url = btn.getAttribute('data-url');
-                chrome.tabs.create({ url });
-                window.close();
+                if (url) {
+                    chromeAPI.tabs.create({ url });
+                    window.close();
+                }
             });
         });
         
-        // Convert favorite
         document.querySelectorAll('.convert-favorite').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 const url = btn.getAttribute('data-url');
+                if (!url) return;
                 
-                // Get preferred agent from settings
-                chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
-                    if (!response || !response.success) {
-                        console.error('Could not get settings');
-                        return;
-                    }
+                chromeAPI.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+                    if (chromeAPI.runtime.lastError || !response || !response.success) return;
                     
                     const targetAgent = response.settings.preferredAgent;
                     
-                    chrome.runtime.sendMessage({
+                    chromeAPI.runtime.sendMessage({
                         action: 'convertUrl',
                         url: url,
                         targetAgent: targetAgent
                     }, (convertResponse) => {
-                        if (convertResponse && convertResponse.success && convertResponse.convertedUrl) {
-                            chrome.tabs.create({ url: convertResponse.convertedUrl });
+                        if (chromeAPI.runtime.lastError || !convertResponse || !convertResponse.success) return;
+                        
+                        if (convertResponse.convertedUrl) {
+                            chromeAPI.tabs.create({ url: convertResponse.convertedUrl });
                             window.close();
                         }
                     });
@@ -722,25 +904,61 @@ class PopupManager {
             });
         });
         
-        // Remove favorite
         document.querySelectorAll('.remove-favorite').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const id = parseInt(btn.getAttribute('data-id'));
+                e.preventDefault();
+                
+                // Check if already processing
+                if (btn.hasAttribute('data-processing')) {
+                    console.log('Already processing, ignoring click');
+                    return;
+                }
+                
+                // Mark as processing
+                btn.setAttribute('data-processing', 'true');
+                btn.disabled = true;
+                btn.textContent = 'Removing...';
+                btn.style.opacity = '0.5';
+                
+                const id = parseInt(btn.getAttribute('data-id') || '0');
                 console.log('Removing favorite with ID:', id);
                 
-                chrome.runtime.sendMessage({
+                // Immediately update counter
+                this.updateCountersDirectly(0, -1);
+                
+                // Remove the item from DOM immediately for instant feedback
+                const favoriteItem = btn.closest('.favorite-item');
+                if (favoriteItem) {
+                    favoriteItem.style.opacity = '0.3';
+                    favoriteItem.style.transform = 'scale(0.95)';
+                    favoriteItem.style.transition = 'all 0.2s ease';
+                    
+                    setTimeout(() => {
+                        favoriteItem.remove();
+                        
+                        // Check if favorites list is now empty
+                        const favoritesList = document.getElementById('favorites-list');
+                        if (favoritesList && favoritesList.children.length === 0) {
+                            favoritesList.innerHTML = `
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">⭐</div>
+                                    <h3>No Favorites Yet</h3>
+                                    <p>Save your favorite products and stores to access them quickly later.</p>
+                                </div>
+                            `;
+                        }
+                    }, 200);
+                }
+                
+                chromeAPI.runtime.sendMessage({
                     action: 'removeFavorite',
                     id: id
                 }, (response) => {
-                    console.log('Remove favorite response:', response);
-                    
-                    if (response && response.success) {
-                        console.log('Favorite removed successfully');
-                        this.loadFavorites();
-                        this.loadStats();
-                    } else {
-                        console.error('Failed to remove favorite:', response);
+                    if (chromeAPI.runtime.lastError || !response || !response.success) {
+                        console.error('Failed to remove favorite');
+                        // Revert counter if failed
+                        this.updateCountersDirectly(0, 1);
                     }
                 });
             });
@@ -753,48 +971,48 @@ class PopupManager {
             return;
         }
         
-        chrome.runtime.sendMessage({
+        chromeAPI.runtime.sendMessage({
             action: 'searchFavorites',
             query: query
         }, (response) => {
-            if (response && response.success) {
-                this.displayFavorites(response.favorites);
+            if (chromeAPI.runtime.lastError || !response || !response.success) {
+                console.error('Failed to search favorites');
+                return;
             }
+            
+            this.displayFavorites(response.favorites);
         });
     }
 
     loadSettingsPanel() {
-        // Populate agent selector
         this.populatePopupAgentSelector();
         
-        // Load current settings
-        chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
-            if (response && response.success) {
-                const settings = response.settings;
-                
-                // Set preferred agent
-                const agentSelect = document.getElementById('popup-preferred-agent');
-                if (agentSelect && settings.preferredAgent) {
-                    agentSelect.value = settings.preferredAgent;
-                }
+        chromeAPI.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+            if (chromeAPI.runtime.lastError || !response || !response.success) {
+                console.error('Failed to load settings for panel');
+                return;
+            }
+            
+            const settings = response.settings;
+            
+            const agentSelect = document.getElementById('popup-preferred-agent');
+            if (agentSelect && settings.preferredAgent) {
+                agentSelect.value = settings.preferredAgent;
+            }
 
-                // Set currency
-                const currencySelect = document.getElementById('popup-currency-select');
-                if (currencySelect && settings.currency) {
-                    currencySelect.value = settings.currency;
-                }
+            const currencySelect = document.getElementById('popup-currency-select');
+            if (currencySelect && settings.currency) {
+                currencySelect.value = settings.currency;
+            }
 
-                // Set currency conversion toggle
-                const currencyToggle = document.getElementById('popup-currency-toggle');
-                if (currencyToggle && settings.enableCurrencyConversion !== false) {
-                    currencyToggle.classList.add('active');
-                }
+            const currencyToggle = document.getElementById('popup-currency-toggle');
+            if (currencyToggle && settings.enableCurrencyConversion !== false) {
+                currencyToggle.classList.add('active');
+            }
 
-                // Set theme
-                const themeSelect = document.getElementById('popup-theme-select');
-                if (themeSelect && settings.theme) {
-                    themeSelect.value = settings.theme;
-                }
+            const themeSelect = document.getElementById('popup-theme-select');
+            if (themeSelect && settings.theme) {
+                themeSelect.value = settings.theme;
             }
         });
     }
@@ -804,11 +1022,8 @@ class PopupManager {
         if (!agentSelect) return;
 
         const agents = this.converter.getSupportedAgents();
-        
-        // Clear existing options
         agentSelect.innerHTML = '';
         
-        // Add agents
         agents.forEach(agentDomain => {
             const option = document.createElement('option');
             option.value = agentDomain;
@@ -817,61 +1032,91 @@ class PopupManager {
         });
     }
 
+    applyThemeToElement(element) {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 
+                           document.body.getAttribute('data-theme') || 
+                           'light';
+        
+        element.setAttribute('data-theme', currentTheme);
+        
+        const childElements = element.querySelectorAll('*');
+        childElements.forEach(child => {
+            child.setAttribute('data-theme', currentTheme);
+        });
+    }
+
     applyTheme(theme) {
         const elements = [
-            document.querySelector('.extension-popup'),
+            document.documentElement,
             document.body,
-            document.documentElement
-        ];
+            document.querySelector('.extension-popup'),
+            ...document.querySelectorAll('.panel'),
+            ...document.querySelectorAll('.content'),
+            ...document.querySelectorAll('.panel-content'),
+            ...document.querySelectorAll('.toggle-section'),
+            ...document.querySelectorAll('.stat-card'),
+            ...document.querySelectorAll('.current-page'),
+            ...document.querySelectorAll('.setting-item'),
+            ...document.querySelectorAll('.history-item'),
+            ...document.querySelectorAll('.favorite-item'),
+            ...document.querySelectorAll('.result-item'),
+            ...document.querySelectorAll('.empty-state')
+        ].filter(Boolean);
         
         elements.forEach(element => {
-            if (element) {
-                element.removeAttribute('data-theme');
-            }
+            element.removeAttribute('data-theme');
         });
         
+        let themeToApply;
+        
         if (theme === 'dark') {
-            elements.forEach(element => {
-                if (element) {
-                    element.setAttribute('data-theme', 'dark');
-                }
-            });
-            console.log('Applied dark theme to popup');
+            themeToApply = 'dark';
         } else if (theme === 'light') {
-            elements.forEach(element => {
-                if (element) {
-                    element.setAttribute('data-theme', 'light');
-                }
-            });
-            console.log('Applied light theme to popup');
-        } else { // auto
+            themeToApply = 'light';
+        } else {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const themeValue = prefersDark ? 'dark' : 'light';
-            elements.forEach(element => {
-                if (element) {
-                    element.setAttribute('data-theme', themeValue);
-                }
-            });
-            console.log('Applied auto theme to popup:', themeValue);
+            themeToApply = prefersDark ? 'dark' : 'light';
         }
+        
+        elements.forEach(element => {
+            element.setAttribute('data-theme', themeToApply);
+        });
+        
+        const formElements = [
+            ...document.querySelectorAll('select'),
+            ...document.querySelectorAll('input'),
+            ...document.querySelectorAll('textarea'),
+            ...document.querySelectorAll('button')
+        ];
+        
+        formElements.forEach(element => {
+            element.setAttribute('data-theme', themeToApply);
+        });
+        
+        console.log(`Applied ${themeToApply} theme to popup (from ${theme} setting)`);
+        
+        document.body.style.display = 'none';
+        document.body.offsetHeight;
+        document.body.style.display = '';
     }
 
     exportData() {
-        chrome.runtime.sendMessage({ action: 'exportData' }, (response) => {
-            if (response && response.success) {
-                const dataStr = response.data;
-                
-                // Create and download file
-                const blob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `agent-redirector-backup-${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+        chromeAPI.runtime.sendMessage({ action: 'exportData' }, (response) => {
+            if (chromeAPI.runtime.lastError || !response || !response.success) {
+                console.error('Failed to export data');
+                return;
             }
+            
+            const dataStr = response.data;
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `agent-redirector-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         });
     }
 
@@ -880,31 +1125,45 @@ class PopupManager {
             return;
         }
 
-        // Clear history and favorites
-        chrome.runtime.sendMessage({ action: 'clearHistory' }, (response) => {
-            if (response && response.success) {
-                // Reset favorites
-                const defaultSettings = {
-                    history: [],
-                    favorites: []
-                };
-
-                chrome.runtime.sendMessage({
-                    action: 'updateSettings',
-                    updates: defaultSettings
-                }, (updateResponse) => {
-                    if (updateResponse && updateResponse.success) {
-                        // Refresh stats
-                        this.loadStats();
-                        alert('Data cleared successfully.');
-                    } else {
-                        alert('Error clearing data. Please try again.');
-                    }
-                });
-            } else {
+        chromeAPI.runtime.sendMessage({ action: 'clearHistory' }, (response) => {
+            if (chromeAPI.runtime.lastError || !response || !response.success) {
                 alert('Error clearing data. Please try again.');
+                return;
             }
+            
+            const defaultSettings = {
+                history: [],
+                favorites: []
+            };
+
+            chromeAPI.runtime.sendMessage({
+                action: 'updateSettings',
+                updates: defaultSettings
+            }, (updateResponse) => {
+                if (chromeAPI.runtime.lastError || !updateResponse || !updateResponse.success) {
+                    alert('Error clearing data. Please try again.');
+                    return;
+                }
+                
+                // Reset our counters
+                this.currentStats.redirects = 0;
+                this.currentStats.favorites = 0;
+                this.updateCountersDirectly(0, 0);
+                
+                alert('Data cleared successfully.');
+            });
         });
+    }
+
+    escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
     }
 }
 
@@ -912,7 +1171,6 @@ class PopupManager {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing popup...');
     
-    // Add a small delay to ensure all elements are rendered
     setTimeout(() => {
         try {
             new PopupManager();
