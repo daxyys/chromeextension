@@ -167,8 +167,54 @@ class PopupManager {
                         
                         if (pageInfo && platformElement && itemElement) {
                             pageInfo.style.display = 'block';
-                            platformElement.textContent = parsed.platform || parsed.agent || 'Unknown';
-                            itemElement.textContent = parsed.itemId || 'Unknown';
+                            
+                            // Display platform info
+                            if (parsed.platform === 'yupoo.com') {
+                                platformElement.textContent = `Yupoo (${parsed.seller || 'Unknown'})`;
+                                itemElement.textContent = parsed.itemId || 'Store';
+                                
+                                // Hide Convert and Original buttons for Yupoo, only show Save
+                                const convertBtn = document.getElementById('convert-current');
+                                const originalBtn = document.getElementById('original-platform');
+                                if (convertBtn) convertBtn.style.display = 'none';
+                                if (originalBtn) originalBtn.style.display = 'none';
+                                
+                                // Make Save button full width
+                                const pageActions = document.querySelector('.page-actions');
+                                if (pageActions) {
+                                    pageActions.style.gridTemplateColumns = '1fr';
+                                }
+                            } else if (parsed.platform === 'docs.google.com') {
+                                platformElement.textContent = 'Google Sheets';
+                                itemElement.textContent = parsed.sheetName || 'Spreadsheet';
+                                
+                                // Hide Convert and Original buttons for Google Sheets, only show Save
+                                const convertBtn = document.getElementById('convert-current');
+                                const originalBtn = document.getElementById('original-platform');
+                                if (convertBtn) convertBtn.style.display = 'none';
+                                if (originalBtn) originalBtn.style.display = 'none';
+                                
+                                // Make Save button full width
+                                const pageActions = document.querySelector('.page-actions');
+                                if (pageActions) {
+                                    pageActions.style.gridTemplateColumns = '1fr';
+                                }
+                            } else {
+                                platformElement.textContent = parsed.platform || parsed.agent || 'Unknown';
+                                itemElement.textContent = parsed.itemId || 'Unknown';
+                                
+                                // Show all buttons for other platforms
+                                const convertBtn = document.getElementById('convert-current');
+                                const originalBtn = document.getElementById('original-platform');
+                                if (convertBtn) convertBtn.style.display = '';
+                                if (originalBtn) originalBtn.style.display = '';
+                                
+                                // Reset grid layout
+                                const pageActions = document.querySelector('.page-actions');
+                                if (pageActions) {
+                                    pageActions.style.gridTemplateColumns = '1fr 1fr 1fr';
+                                }
+                            }
                         }
                     } else {
                         const pageInfo = document.getElementById('current-page-info');
@@ -214,12 +260,26 @@ class PopupManager {
             });
         }
 
+        const originalBtn = document.getElementById('original-platform');
+        if (originalBtn) {
+            originalBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('Original platform button clicked');
+                this.goToOriginalPlatform();
+            });
+        }
+        
+
         // Main action buttons
         const batchBtn = document.getElementById('batch-convert-btn');
         if (batchBtn) {
             batchBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.showPanel('batch-convert-panel');
+                // Open batch convert page in new tab instead of showing panel
+                chromeAPI.tabs.create({ 
+                    url: chromeAPI.runtime.getURL('batch/batch.html')
+                });
+                window.close();
             });
         }
 
@@ -519,6 +579,58 @@ class PopupManager {
             } else {
                 console.log('Could not convert URL or URL is the same');
             }
+        });
+    }
+
+    goToOriginalPlatform() {
+        if (!this.currentTab || !this.currentTab.url) {
+            console.log('No current tab or URL');
+            return;
+        }
+
+        const parsed = this.converter.parseUrl(this.currentTab.url);
+        if (!parsed || !parsed.originalUrl) {
+            console.log('Could not determine original URL');
+            return;
+        }
+
+        console.log('Converting to original platform:', parsed.originalUrl);
+        
+        // Immediately update redirect counter
+        this.updateCountersDirectly(1, 0);
+        
+        // REQUEST BYPASS for auto-redirect before navigating
+        chromeAPI.runtime.sendMessage({
+            action: 'bypassAutoRedirect',
+            url: parsed.originalUrl
+        }, (bypassResponse) => {
+            if (chromeAPI.runtime.lastError) {
+                console.error('Error setting bypass:', chromeAPI.runtime.lastError);
+            } else {
+                console.log('Auto-redirect bypass set for:', parsed.originalUrl);
+            }
+            
+            // Add to history
+            chromeAPI.runtime.sendMessage({
+                action: 'addToHistory',
+                item: {
+                    originalUrl: this.currentTab.url,
+                    convertedUrl: parsed.originalUrl,
+                    fromAgent: parsed.agent || 'unknown',
+                    toAgent: 'original',
+                    platform: parsed.platform,
+                    itemId: parsed.itemId
+                }
+            }, (historyResponse) => {
+                // Don't override our optimistic update
+                if (!historyResponse || !historyResponse.success) {
+                    this.updateCountersDirectly(-1, 0);
+                }
+            });
+
+            // Navigate to original URL (now with bypass protection)
+            chromeAPI.tabs.create({ url: parsed.originalUrl });
+            window.close();
         });
     }
 

@@ -189,10 +189,59 @@ a[data-agent-convertible="true"]:hover::after {
     display: none !important;
 }
 
+/* GTBuy warnings - Enhanced and comprehensive */
+.risk-warning,
+.warning-popup,
+.warning-modal,
+.error-message,
+.alert-warning,
+.risk-popup,
+.infringement-warning,
+.gtbuy-warning,
+.platform-warning,
+.purchase-warning {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* GTBuy specific error messages */
+div:has-text("GTBUY Greetings"),
+div:has-text("暂不支持"),
+div:has-text("suspected of infringement"),
+div:has-text("unable to purchase"),
+div:has-text("risk"),
+*[class*="risk"],
+*[class*="infringement"],
+*[id*="warning"],
+*[id*="risk"],
+*[id*="error"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+/* GTBuy modal and popup containers */
+.modal-container:has(.risk-warning),
+.popup-container:has(.warning-modal),
+.dialog-container:has(.error-message) {
+    display: none !important;
+}
+
+/* GTBuy overlay and backdrop removal */
+[style*="position: fixed"][style*="z-index"]:has([class*="warning"]),
+[style*="position: fixed"][style*="z-index"]:has([class*="risk"]),
+[style*="position: fixed"][style*="z-index"]:has([class*="error"]) {
+    display: none !important;
+}
+
 /* Generic warning patterns */
 [class*="external-warning"],
 [class*="link-warning"],
-[class*="redirect-warning"] {
+[class*="redirect-warning"],
+[class*="platform-warning"],
+[class*="purchase-warning"] {
     display: none !important;
 }
 
@@ -208,6 +257,37 @@ a[data-agent-convertible="true"]:hover::after {
 [class*="login-popup"],
 [class*="signin-modal"],
 [class*="auth-overlay"] {
+    display: none !important;
+}
+
+/* GTBuy specific content hiding by text content */
+/* Note: These are handled by JavaScript, but CSS backup for common cases */
+*:contains("GTBUY Greetings") {
+    display: none !important;
+}
+
+*:contains("当前平台tmall暂不支持") {
+    display: none !important;
+}
+
+*:contains("suspected of infringement") {
+    display: none !important;
+}
+
+*:contains("unable to purchase") {
+    display: none !important;
+}
+
+/* Hide elements with specific Chinese warning text */
+*:contains("风险") {
+    display: none !important;
+}
+
+*:contains("警告") {
+    display: none !important;
+}
+
+*:contains("不支持") {
     display: none !important;
 }
 
@@ -234,4 +314,124 @@ a[data-agent-convertible="true"]:hover::after {
 @keyframes spin {
     0% { transform: translate(-50%, -50%) rotate(0deg); }
     100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Force hide any remaining warning overlays */
+body > div[style*="position: fixed"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"] {
+    display: none !important;
+}
+
+/* Force hide modal backdrops */
+.modal-backdrop,
+.overlay,
+.popup-backdrop,
+[class*="backdrop"],
+[class*="overlay"] {
+    display: none !important;
+}
+
+/* GTBuy specific z-index override */
+*[style*="z-index: 9999"],
+*[style*="z-index: 10000"],
+*[style*="z-index: 99999"] {
+    z-index: -1 !important;
+}
+
+/* Additional GTBuy warning containers */
+div[class*="warning"],
+div[class*="alert"],
+div[class*="risk"],
+div[class*="error"],
+div[id*="warning"],
+div[id*="alert"],
+div[id*="risk"],
+div[id*="error"] {
+    display: none !important;
+}
+
+/* Hide elements that might be warning containers by structure */
+div > div:only-child:has-text("risk"),
+div > div:only-child:has-text("warning"),
+div > div:only-child:has-text("暂不支持"),
+div > div:only-child:has-text("infringement") {
+    display: none !important;
+}
+
+/* Force hide any popup that appears over the page */
+div[style*="position: absolute"][style*="z-index"],
+div[style*="position: fixed"][style*="z-index"] {
+    z-index: -1 !important;
+}
+
+/* GTBuy specific button hiding for warning dialogs */
+button:contains("确定"),
+button:contains("OK"),
+button:contains("Close"),
+input[value*="确定"],
+input[value*="OK"] {
+    display: none !important;
+}
+
+/* Hide any remaining warning text */
+*:has-text("The product you submitted may have 1 risk") {
+    display: none !important;
+}
+
+*:has-text("We suggest that you read about the risk") {
+    display: none !important;
+}
+
+*:has-text("We are very sorry") {
+    display: none !important;
+}
+
+/* Emergency override - hide entire warning sections */
+section:has([class*="warning"]),
+section:has([class*="risk"]),
+section:has([class*="error"]),
+article:has([class*="warning"]),
+article:has([class*="risk"]),
+article:has([class*="error"]) {
+    display: none !important;
+}
+
+/* GTBuy page-level warning removal */
+main:has-text("GTBUY Greetings") > *:has-text("risk"),
+main:has-text("GTBUY Greetings") > *:has-text("暂不支持"),
+main:has-text("GTBUY Greetings") > *:has-text("infringement") {
+    display: none !important;
+}
+
+/* Comprehensive GTBuy warning text patterns */
+*[class*="message"]:has-text("risk"),
+*[class*="message"]:has-text("warning"),
+*[class*="message"]:has-text("暂不支持"),
+*[class*="message"]:has-text("infringement"),
+*[class*="content"]:has-text("GTBUY Greetings"),
+*[class*="text"]:has-text("suspected") {
+    display: none !important;
+}
+
+/* Hide parent containers of warning messages */
+div:has(> *:contains("GTBUY Greetings")),
+div:has(> *:contains("暂不支持")),
+div:has(> *:contains("suspected of infringement")),
+div:has(> *:contains("unable to purchase")) {
+    display: none !important;
+}
+
+/* Final catchall for any remaining GTBuy warnings */
+*:matches-text("GTBUY Greetings.*risk"),
+*:matches-text("当前平台.*暂不支持"),
+*:matches-text("suspected.*infringement"),
+*:matches-text("unable.*purchase") {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }

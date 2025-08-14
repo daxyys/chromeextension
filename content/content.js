@@ -22,6 +22,11 @@ class ContentScriptManager {
         
         // Setup observers for dynamic content
         this.setupMutationObserver();
+        
+        // Initialize GTBuy specific warning removal
+        if (window.location.hostname.includes('gtbuy.com')) {
+            this.initGTBuyWarningRemoval();
+        }
     }
 
     removeWarnings() {
@@ -52,6 +57,22 @@ class ContentScriptManager {
                 '.warning-modal',
                 '.link-warning'
             ],
+            'gtbuy.com': [
+                '.risk-warning',
+                '.warning-popup',
+                '.warning-modal',
+                '.error-message',
+                '.alert-warning',
+                '.risk-popup',
+                '.infringement-warning',
+                '[class*="warning"]',
+                '[class*="alert"]',
+                '[class*="risk"]',
+                '[class*="error"]',
+                '#warning-modal',
+                '#risk-popup',
+                '#error-dialog'
+            ],
             // Add more as needed
             'default': [
                 '[class*="warning"]',
@@ -70,12 +91,18 @@ class ContentScriptManager {
         selectorsToCheck.forEach(selector => {
             const elements = document.querySelectorAll(selector);
             elements.forEach(element => {
-                // Check if it's actually a warning about external links
+                // Check if it's actually a warning about external links or risks
                 const text = element.textContent.toLowerCase();
                 if (text.includes('external') || 
                     text.includes('warning') || 
                     text.includes('redirect') ||
-                    text.includes('leaving')) {
+                    text.includes('leaving') ||
+                    text.includes('risk') ||
+                    text.includes('infringement') ||
+                    text.includes('暂不支持') ||
+                    text.includes('suspected') ||
+                    text.includes('unable to purchase') ||
+                    text.includes('greetings')) {
                     this.dismissElement(element);
                 }
             });
@@ -83,34 +110,126 @@ class ContentScriptManager {
 
         // Remove sign-in prompts that appear on agent pages
         this.removeSignInPrompts();
+        
+        // Remove overlays and backdrops
+        this.removeOverlays();
     }
 
     dismissElement(element) {
         // Try different methods to dismiss the element
         
-        // Method 1: Find and click close/dismiss buttons
-        const closeButtons = element.querySelectorAll('button, [class*="close"], [class*="dismiss"], [class*="cancel"]');
+        // Method 1: Find and click close/dismiss/continue buttons
+        const closeButtons = element.querySelectorAll('button, [class*="close"], [class*="dismiss"], [class*="cancel"], a, [role="button"]');
+        let dismissed = false;
+        
         closeButtons.forEach(button => {
+            if (dismissed) return;
+            
             const buttonText = button.textContent.toLowerCase();
+            const buttonClass = button.className.toLowerCase();
+            
+            // Look for continue/proceed/confirm buttons first (for GTBuy)
+            if (buttonText.includes('continue') || 
+                buttonText.includes('proceed') || 
+                buttonText.includes('confirm') ||
+                buttonText.includes('ok') ||
+                buttonText.includes('确定') ||
+                buttonText.includes('继续') ||
+                buttonText.includes('同意') ||
+                buttonClass.includes('confirm') ||
+                buttonClass.includes('continue') ||
+                buttonClass.includes('proceed')) {
+                
+                console.log('Auto-clicking continue/proceed button:', button);
+                try {
+                    button.click();
+                    dismissed = true;
+                } catch (error) {
+                    console.warn('Error clicking continue button:', error);
+                }
+                return;
+            }
+            
+            // Then look for close/dismiss buttons
             if (buttonText.includes('close') || 
                 buttonText.includes('dismiss') || 
                 buttonText.includes('cancel') ||
                 buttonText.includes('×') ||
-                buttonText.includes('ok')) {
-                button.click();
+                buttonText.includes('关闭') ||
+                buttonClass.includes('close') ||
+                buttonClass.includes('dismiss')) {
+                
+                console.log('Auto-clicking close button:', button);
+                try {
+                    button.click();
+                    dismissed = true;
+                } catch (error) {
+                    console.warn('Error clicking close button:', error);
+                }
                 return;
             }
         });
 
-        // Method 2: Hide the element
+        // Method 2: Hide the element immediately
         element.style.display = 'none';
+        element.style.visibility = 'hidden';
+        element.style.opacity = '0';
+        element.style.pointerEvents = 'none';
         
-        // Method 3: Remove from DOM
+        // Method 3: Remove from DOM after a short delay
         setTimeout(() => {
             if (element.parentNode) {
-                element.parentNode.removeChild(element);
+                try {
+                    element.parentNode.removeChild(element);
+                    console.log('Removed warning element from DOM');
+                } catch (error) {
+                    console.warn('Error removing element:', error);
+                }
             }
         }, 100);
+    }
+
+    removeOverlays() {
+        const overlaySelectors = [
+            '.modal-backdrop',
+            '.overlay',
+            '.popup-backdrop',
+            '[class*="backdrop"]',
+            '[class*="overlay"]'
+        ];
+
+        overlaySelectors.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                const computedStyle = window.getComputedStyle(element);
+                if (computedStyle.position === 'fixed' && 
+                    (parseInt(computedStyle.zIndex) > 1000 || computedStyle.backgroundColor.includes('rgba'))) {
+                    console.log('Removing overlay:', element);
+                    element.style.display = 'none';
+                    setTimeout(() => {
+                        if (element.parentNode) {
+                            element.parentNode.removeChild(element);
+                        }
+                    }, 100);
+                }
+            });
+        });
+
+        // Also check for elements with fixed positioning that might be overlays
+        const fixedElements = document.querySelectorAll('*');
+        fixedElements.forEach(element => {
+            const computedStyle = window.getComputedStyle(element);
+            if (computedStyle.position === 'fixed' && 
+                parseInt(computedStyle.zIndex) > 9000 &&
+                (computedStyle.backgroundColor.includes('rgba') || computedStyle.background.includes('rgba'))) {
+                
+                const text = element.textContent.toLowerCase();
+                if (text.includes('warning') || text.includes('risk') || text.includes('alert') || text.includes('暂不支持')) {
+                    console.log('Removing fixed warning overlay:', element);
+                    element.style.display = 'none';
+                }
+            }
+        });
     }
 
     removeSignInPrompts() {
@@ -154,6 +273,166 @@ class ContentScriptManager {
                     }
                 }
             });
+        });
+    }
+
+    // GTBuy specific warning removal system
+    initGTBuyWarningRemoval() {
+        console.log('Initializing GTBuy warning removal system');
+        
+        // Immediate removal
+        this.removeGTBuyWarnings();
+        
+        // Setup auto-clicker for warning bypass
+        this.setupGTBuyAutoClicker();
+        
+        // Setup periodic checks
+        this.setupGTBuyPeriodicCheck();
+        
+        // Monitor for new warnings
+        this.setupGTBuyWarningMonitor();
+    }
+
+    removeGTBuyWarnings() {
+        // Look for GTBuy specific warning text patterns
+        const warningTextPatterns = [
+            'greetings',
+            'risk',
+            'infringement',
+            '暂不支持',
+            'suspected',
+            'unable to purchase',
+            'current platform',
+            'not supported'
+        ];
+
+        // Check all text elements
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach(element => {
+            // Skip if element has children (avoid removing parent containers unnecessarily)
+            if (element.children.length > 5) return;
+            
+            const text = element.textContent.toLowerCase();
+            const isWarningElement = warningTextPatterns.some(pattern => text.includes(pattern));
+            
+            if (isWarningElement && text.length < 1000) { // Avoid removing entire page content
+                console.log('Removing GTBuy warning element containing:', text.substring(0, 100));
+                this.dismissElement(element);
+            }
+        });
+    }
+
+    setupGTBuyAutoClicker() {
+        let clickAttempts = 0;
+        const maxAttempts = 20; // Try for 10 seconds
+        
+        const autoClickInterval = setInterval(() => {
+            clickAttempts++;
+            
+            // Look for continue/proceed buttons
+            const continueSelectors = [
+                'button[onclick*="continue"]',
+                'button[onclick*="proceed"]',
+                'button[onclick*="confirm"]',
+                '.btn-continue',
+                '.btn-proceed',
+                '.btn-confirm',
+                '[data-action="continue"]',
+                '[data-action="proceed"]'
+            ];
+
+            let buttonClicked = false;
+
+            continueSelectors.forEach(selector => {
+                if (buttonClicked) return;
+                
+                const buttons = document.querySelectorAll(selector);
+                buttons.forEach(button => {
+                    if (button.offsetParent !== null && !buttonClicked) { // visible element
+                        console.log('GTBuy: Auto-clicking continue button:', button);
+                        try {
+                            button.click();
+                            buttonClicked = true;
+                        } catch (error) {
+                            console.warn('Error auto-clicking button:', error);
+                        }
+                    }
+                });
+            });
+
+            // Also check for text-based buttons
+            if (!buttonClicked) {
+                const allButtons = document.querySelectorAll('button, a[role="button"], [role="button"], input[type="button"], input[type="submit"]');
+                allButtons.forEach(button => {
+                    if (buttonClicked) return;
+                    
+                    const text = button.textContent.trim().toLowerCase();
+                    const value = button.value ? button.value.toLowerCase() : '';
+                    
+                    if ((text === '确定' || text === '继续' || text === '同意' || text === 'ok' || 
+                         text === 'continue' || text === 'proceed' || text === 'confirm' ||
+                         value === 'ok' || value === 'continue') && 
+                        button.offsetParent !== null) {
+                        
+                        console.log('GTBuy: Auto-clicking text-based button:', button, 'Text:', text);
+                        try {
+                            button.click();
+                            buttonClicked = true;
+                        } catch (error) {
+                            console.warn('Error auto-clicking text button:', error);
+                        }
+                    }
+                });
+            }
+
+            // Stop after max attempts
+            if (clickAttempts >= maxAttempts) {
+                clearInterval(autoClickInterval);
+                console.log('GTBuy: Auto-clicker stopped after max attempts');
+            }
+
+        }, 500); // Check every 500ms
+    }
+
+    setupGTBuyPeriodicCheck() {
+        // Periodically remove any new warnings that appear
+        setInterval(() => {
+            if (window.location.hostname.includes('gtbuy.com')) {
+                this.removeGTBuyWarnings();
+                this.removeOverlays();
+            }
+        }, 2000); // Check every 2 seconds
+    }
+
+    setupGTBuyWarningMonitor() {
+        // Monitor for specific GTBuy warning elements being added
+        const observer = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            const text = node.textContent?.toLowerCase() || '';
+                            
+                            // Check for GTBuy warning patterns
+                            if (text.includes('risk') || 
+                                text.includes('warning') ||
+                                text.includes('暂不支持') ||
+                                text.includes('infringement') ||
+                                text.includes('suspected') ||
+                                text.includes('greetings')) {
+                                
+                                console.log('GTBuy: New warning element detected:', node);
+                                setTimeout(() => this.dismissElement(node), 50);
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
         });
     }
 
@@ -435,6 +714,14 @@ class ContentScriptManager {
                             // Re-run our enhancement functions on new content
                             this.removeWarningsInElement(node);
                             this.enhanceLinksInElement(node);
+                            
+                            // GTBuy specific handling
+                            if (window.location.hostname.includes('gtbuy.com')) {
+                                const text = node.textContent?.toLowerCase() || '';
+                                if (text.includes('risk') || text.includes('warning') || text.includes('暂不支持')) {
+                                    setTimeout(() => this.dismissElement(node), 100);
+                                }
+                            }
                         }
                     });
                 }
@@ -449,10 +736,11 @@ class ContentScriptManager {
 
     removeWarningsInElement(element) {
         // Similar to removeWarnings but scoped to a specific element
-        const warnings = element.querySelectorAll('[class*="warning"], [class*="alert"], [class*="popup"]');
+        const warnings = element.querySelectorAll('[class*="warning"], [class*="alert"], [class*="popup"], [class*="risk"]');
         warnings.forEach(warning => {
             const text = warning.textContent.toLowerCase();
-            if (text.includes('external') || text.includes('warning') || text.includes('redirect')) {
+            if (text.includes('external') || text.includes('warning') || text.includes('redirect') || 
+                text.includes('risk') || text.includes('infringement') || text.includes('暂不支持')) {
                 this.dismissElement(warning);
             }
         });

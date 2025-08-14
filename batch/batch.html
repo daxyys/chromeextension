@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Convert - Agent Redirector</title>
+    <link rel="stylesheet" href="batch.css">
+</head>
+<body>
+    <div class="batch-container">
+        <header class="batch-header">
+            <h1>Batch Convert URLs</h1>
+            <p>Convert multiple URLs to your preferred shipping agent at once</p>
+        </header>
+
+        <main class="batch-main">
+            <!-- Input Section -->
+            <section class="input-section">
+                <div class="input-header">
+                    <h2>Input URLs</h2>
+                    <div class="input-actions">
+                        <button id="paste-clipboard" class="btn btn-secondary">📋 Paste from Clipboard</button>
+                        <button id="clear-input" class="btn btn-secondary">🗑️ Clear</button>
+                    </div>
+                </div>
+                
+                <textarea 
+                    id="batch-urls" 
+                    placeholder="Paste your URLs here, one per line...&#10;&#10;Examples:&#10;https://item.taobao.com/item.htm?id=123456789&#10;https://weidian.com/item.html?itemID=987654321&#10;https://detail.1688.com/offer/555666777.html&#10;https://superbuy.com/en/page/buy/?url=..."
+                    rows="12"
+                ></textarea>
+                
+                <div class="input-info">
+                    <span id="url-count">0 URLs detected</span>
+                    <span class="separator">•</span>
+                    <span>Supports: Taobao, Tmall, Weidian, 1688, and all 26 agents</span>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section class="settings-section">
+                <div class="setting-group">
+                    <label for="target-agent">Convert to:</label>
+                    <select id="target-agent" class="agent-select">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </div>
+                
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="skip-unsupported" checked>
+                        Skip unsupported URLs
+                    </label>
+                </div>
+                
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="remove-duplicates" checked>
+                        Remove duplicate URLs
+                    </label>
+                </div>
+            </section>
+
+            <!-- Action Section -->
+            <section class="action-section">
+                <button id="convert-batch" class="btn btn-primary btn-large">
+                    🔄 Convert All URLs
+                </button>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="results-section" style="display: none;">
+                <div class="results-header">
+                    <h2>Conversion Results</h2>
+                    <div class="results-actions">
+                        <button id="copy-successful" class="btn btn-secondary">📋 Copy Successful</button>
+                        <button id="copy-all-results" class="btn btn-secondary">📋 Copy All</button>
+                        <button id="open-all" class="btn btn-secondary">🔗 Open All (⚠️)</button>
+                    </div>
+                </div>
+                
+                <div class="results-stats">
+                    <div class="stat">
+                        <span class="stat-number" id="successful-count">0</span>
+                        <span class="stat-label">Successful</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" id="failed-count">0</span>
+                        <span class="stat-label">Failed</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" id="total-count">0</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                </div>
+                
+                <div class="results-list" id="results-list">
+                    <!-- Results will be populated here -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="batch-footer">
+            <p>Agent Redirector - Batch Convert Tool</p>
+            <a href="#" id="back-to-popup">← Back to Extension</a>
+        </footer>
+    </div>
+
+    <script src="../lib/converter.js"></script>
+    <script src="../lib/storage.js"></script>
+    <script src="batch.js"></script>
+</body>
+</html>

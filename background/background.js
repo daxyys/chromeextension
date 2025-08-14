@@ -1,4 +1,4 @@
-// Background service worker for Shipping// Background service worker for Shipping Agent Redirector
+// Background service worker for Shipping Agent Redirector
 
 // Import the converter and storage classes - use correct relative path from background folder
 importScripts('../lib/converter.js', '../lib/storage.js');
@@ -7,6 +7,7 @@ class BackgroundService {
     constructor() {
         this.converter = null;
         this.storage = null;
+        this.bypassAutoRedirect = new Set(); // Track URLs to bypass auto-redirect
         console.log('BackgroundService constructor called');
         this.init();
     }
@@ -55,6 +56,13 @@ class BackgroundService {
             
             if (!settings.autoConvert) return;
 
+            // Check if this URL should bypass auto-redirect
+            if (this.bypassAutoRedirect.has(url)) {
+                console.log('Bypassing auto-redirect for manually accessed original URL:', url);
+                this.bypassAutoRedirect.delete(url); // Remove after use
+                return;
+            }
+
             const parsed = this.converter.parseUrl(url);
             if (!parsed) return;
 
@@ -63,24 +71,43 @@ class BackgroundService {
                 return;
             }
 
-            // Don't redirect original platforms
-            if (parsed.type === 'original') return;
+            // FIXED: Convert original platforms (Taobao/Weidian/Tmall/1688) to preferred agent
+            if (parsed.type === 'original') {
+                const convertedUrl = this.converter.convertUrl(url, settings.preferredAgent);
+                if (convertedUrl && convertedUrl !== url) {
+                    // Add to history
+                    await this.storage.addToHistory({
+                        originalUrl: url,
+                        convertedUrl: convertedUrl,
+                        fromAgent: 'original',
+                        toAgent: settings.preferredAgent,
+                        platform: parsed.platform,
+                        itemId: parsed.itemId
+                    });
 
-            // Convert to preferred agent
-            const convertedUrl = this.converter.convertUrl(url, settings.preferredAgent);
-            if (convertedUrl && convertedUrl !== url) {
-                // Add to history
-                await this.storage.addToHistory({
-                    originalUrl: url,
-                    convertedUrl: convertedUrl,
-                    fromAgent: parsed.agent || 'original',
-                    toAgent: settings.preferredAgent,
-                    platform: parsed.platform,
-                    itemId: parsed.itemId
-                });
+                    // Redirect to preferred agent
+                    chrome.tabs.update(tabId, { url: convertedUrl });
+                }
+                return; // Don't process further
+            }
 
-                // Redirect
-                chrome.tabs.update(tabId, { url: convertedUrl });
+            // Convert between agents (if not already on preferred agent)
+            if (parsed.type === 'agent' && parsed.agent !== settings.preferredAgent) {
+                const convertedUrl = this.converter.convertUrl(url, settings.preferredAgent);
+                if (convertedUrl && convertedUrl !== url) {
+                    // Add to history
+                    await this.storage.addToHistory({
+                        originalUrl: url,
+                        convertedUrl: convertedUrl,
+                        fromAgent: parsed.agent,
+                        toAgent: settings.preferredAgent,
+                        platform: parsed.platform,
+                        itemId: parsed.itemId
+                    });
+
+                    // Redirect to preferred agent
+                    chrome.tabs.update(tabId, { url: convertedUrl });
+                }
             }
         } catch (error) {
             console.error('Error handling tab update:', error);
@@ -298,6 +325,19 @@ class BackgroundService {
                     sendResponse({ success: true, agents });
                     break;
 
+                // NEW: Handle bypass request for original platform access
+                case 'bypassAutoRedirect':
+                    if (message.url) {
+                        console.log('Adding auto-redirect bypass for URL:', message.url);
+                        this.bypassAutoRedirect.add(message.url);
+                        // Auto-remove bypass after 5 seconds as failsafe
+                        setTimeout(() => {
+                            this.bypassAutoRedirect.delete(message.url);
+                        }, 5000);
+                    }
+                    sendResponse({ success: true });
+                    break;
+
                 default:
                     sendResponse({ success: false, error: 'Unknown action' });
             }
@@ -318,4 +358,4 @@ class BackgroundService {
 }
 
 // Initialize background service
-const backgroundService = new BackgroundService();
+const backgroundService = new BackgroundService();  

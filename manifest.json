@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Shipping Agent Redirector",
   "version": "1.0.0",
-  "description": "Seamlessly redirect between 27 shipping agents and original platforms with batch tools, currency conversion, and link management.",
+  "description": "Seamlessly redirect between 26 shipping agents and original platforms with batch tools, currency conversion, and link management.",
   
   "permissions": [
     "storage",
@@ -16,6 +16,8 @@
     "*://*.tmall.com/*",
     "*://*.weidian.com/*",
     "*://*.1688.com/*",
+    "*://*.yupoo.com/*",
+    "*://docs.google.com/*",
     "*://*.superbuy.com/*",
     "*://*.sugargoo.com/*",
     "*://*.joyagoo.com/*",
@@ -33,13 +35,15 @@
     "*://*.hubbuycn.com/*",
     "*://*.oopbuy.com/*",
     "*://*.orientdig.com/*",
-    "*://*.yoybuy.com/*",
     "*://*.hipobuy.com/*",
     "*://*.npbuy.com/*",
     "*://*.gtbuy.com/*",
     "*://*.pantherbuy.com/*",
     "*://*.ootdbuy.com/*",
-    "*://*.cssbuy.com/*"
+    "*://*.cssbuy.com/*",
+    "*://*.usfans.com/*",
+    "*://*.niuniubox.com/*",
+    "*://*.wemimi.com/*"
   ],
   
   "background": {
@@ -53,6 +57,8 @@
         "*://*.tmall.com/*",
         "*://*.weidian.com/*",
         "*://*.1688.com/*",
+        "*://*.yupoo.com/*",
+        "*://docs.google.com/*",
         "*://*.superbuy.com/*",
         "*://*.sugargoo.com/*",
         "*://*.joyagoo.com/*",
@@ -70,13 +76,15 @@
         "*://*.hubbuycn.com/*",
         "*://*.oopbuy.com/*",
         "*://*.orientdig.com/*",
-        "*://*.yoybuy.com/*",
         "*://*.hipobuy.com/*",
         "*://*.npbuy.com/*",
         "*://*.gtbuy.com/*",
         "*://*.pantherbuy.com/*",
         "*://*.ootdbuy.com/*",
-        "*://*.cssbuy.com/*"
+        "*://*.cssbuy.com/*",
+        "*://*.usfans.com/*",
+        "*://*.niuniubox.com/*",
+        "*://*.wemimi.com/*"
       ],
       "js": ["lib/converter.js", "content/content.js"],
       "css": ["content/content.css"]
@@ -96,7 +104,13 @@
   
   "web_accessible_resources": [
     {
-      "resources": ["lib/converter.js", "lib/storage.js"],
+      "resources": [
+        "lib/converter.js", 
+        "lib/storage.js",
+        "batch/batch.html",
+        "batch/batch.css",
+        "batch/batch.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]
