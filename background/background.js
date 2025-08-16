@@ -50,69 +50,76 @@ class BackgroundService {
         });
     }
 
-    async handleTabUpdate(tabId, url) {
-        try {
-            const settings = await this.storage.getSettings();
-            
-            if (!settings.autoConvert) return;
+async handleTabUpdate(tabId, url) {
+    try {
+        const settings = await this.storage.getSettings();
+        
+        if (!settings.autoConvert) return;
 
-            // Check if this URL should bypass auto-redirect
-            if (this.bypassAutoRedirect.has(url)) {
-                console.log('Bypassing auto-redirect for manually accessed original URL:', url);
-                this.bypassAutoRedirect.delete(url); // Remove after use
-                return;
-            }
-
-            const parsed = this.converter.parseUrl(url);
-            if (!parsed) return;
-
-            // Don't redirect if already on preferred agent
-            if (parsed.type === 'agent' && parsed.agent === settings.preferredAgent) {
-                return;
-            }
-
-            // FIXED: Convert original platforms (Taobao/Weidian/Tmall/1688) to preferred agent
-            if (parsed.type === 'original') {
-                const convertedUrl = this.converter.convertUrl(url, settings.preferredAgent);
-                if (convertedUrl && convertedUrl !== url) {
-                    // Add to history
-                    await this.storage.addToHistory({
-                        originalUrl: url,
-                        convertedUrl: convertedUrl,
-                        fromAgent: 'original',
-                        toAgent: settings.preferredAgent,
-                        platform: parsed.platform,
-                        itemId: parsed.itemId
-                    });
-
-                    // Redirect to preferred agent
-                    chrome.tabs.update(tabId, { url: convertedUrl });
-                }
-                return; // Don't process further
-            }
-
-            // Convert between agents (if not already on preferred agent)
-            if (parsed.type === 'agent' && parsed.agent !== settings.preferredAgent) {
-                const convertedUrl = this.converter.convertUrl(url, settings.preferredAgent);
-                if (convertedUrl && convertedUrl !== url) {
-                    // Add to history
-                    await this.storage.addToHistory({
-                        originalUrl: url,
-                        convertedUrl: convertedUrl,
-                        fromAgent: parsed.agent,
-                        toAgent: settings.preferredAgent,
-                        platform: parsed.platform,
-                        itemId: parsed.itemId
-                    });
-
-                    // Redirect to preferred agent
-                    chrome.tabs.update(tabId, { url: convertedUrl });
-                }
-            }
-        } catch (error) {
-            console.error('Error handling tab update:', error);
+        // Check if this URL should bypass auto-redirect
+        if (this.bypassAutoRedirect.has(url)) {
+            console.log('Bypassing auto-redirect for manually accessed original URL:', url);
+            this.bypassAutoRedirect.delete(url); // Remove after use
+            return;
         }
+
+        const parsed = this.converter.parseUrl(url);
+        if (!parsed) return;
+
+        // Don't redirect if already on preferred agent
+        if (parsed.type === 'agent' && parsed.agent === settings.preferredAgent) {
+            return;
+        }
+
+        // FIXED: Only convert original platforms that can be converted to agents
+        // Skip Yupoo and Google Sheets as they don't have agent equivalents
+        if (parsed.type === 'original') {
+            // Skip platforms that don't have agent equivalents
+            if (parsed.platform === 'yupoo.com' || parsed.platform === 'docs.google.com') {
+                console.log('Skipping auto-convert for non-convertible platform:', parsed.platform);
+                return;
+            }
+            
+            const convertedUrl = this.converter.convertUrl(url, settings.preferredAgent);
+            if (convertedUrl && convertedUrl !== url) {
+                // Add to history
+                await this.storage.addToHistory({
+                    originalUrl: url,
+                    convertedUrl: convertedUrl,
+                    fromAgent: 'original',
+                    toAgent: settings.preferredAgent,
+                    platform: parsed.platform,
+                    itemId: parsed.itemId
+                });
+
+                // Redirect to preferred agent
+                chrome.tabs.update(tabId, { url: convertedUrl });
+            }
+            return; // Don't process further
+        }
+
+        // Convert between agents (if not already on preferred agent)
+        if (parsed.type === 'agent' && parsed.agent !== settings.preferredAgent) {
+            const convertedUrl = this.converter.convertUrl(url, settings.preferredAgent);
+            if (convertedUrl && convertedUrl !== url) {
+                // Add to history
+                await this.storage.addToHistory({
+                    originalUrl: url,
+                    convertedUrl: convertedUrl,
+                    fromAgent: parsed.agent,
+                    toAgent: settings.preferredAgent,
+                    platform: parsed.platform,
+                    itemId: parsed.itemId
+                });
+
+                // Redirect to preferred agent
+                chrome.tabs.update(tabId, { url: convertedUrl });
+            }
+        }
+    } catch (error) {
+        console.error('Error handling tab update:', error);
     }
+}
 
     createContextMenus() {
         // Remove existing context menus
